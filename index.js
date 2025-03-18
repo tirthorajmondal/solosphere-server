@@ -7,7 +7,7 @@ const port = process.env.PORT || 5000;
 const app = express()
 
 const corsOptions = {
-    origin: ['http://localhost:5173', 'https://solophere-server.vercel.app/'],
+    origin: ['http://localhost:5173', 'http://localhost:5174', 'https://solophere-server.vercel.app/'],
     Credential: true,
     optionSuccessStatus: 200,
 }
@@ -29,6 +29,7 @@ const client = new MongoClient(uri, {
 async function run() {
     try {
         const jobCollection = client.db('jobDB').collection('jobCollection');
+        const bidCollection = client.db('jobDB').collection('bidCollection');
 
         app.get("/all-jobs", async (req, res) => {
             const result = await jobCollection.find().toArray()
@@ -36,11 +37,15 @@ async function run() {
         })
         app.get('/job/:id', async (req, res) => {
             const id = req.params.id;
-            console.log(id);
-            // return
             const query = { _id: new ObjectId(id) }
             const result = await jobCollection.findOne(query);
             res.send(result);
+        })
+        app.get("/my-posted-jobs/:email", async (req, res) => {
+            const myEmail = req.params.email
+            const filter = { 'buyer.email': myEmail }
+            const result = await jobCollection.find(filter).toArray()
+            res.send(result)
         })
 
         app.post('/all-jobs', async (req, res) => {
@@ -55,10 +60,47 @@ async function run() {
             const result = await jobCollection.deleteOne(query);
             res.send(result);
         })
+        app.put('/job/:id', async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) }
+            const jobData = req.body;
+            const options = { upsert: true }
+            const updatedJob = {
+                $set: {
+                    ...jobData,
+                }
+            }
+            const result = await jobCollection.updateOne(filter, updatedJob, options);
+            res.send(result);
+        })
+
+        //bid data
+        app.get('/bids', async (req, res) => {
+            const result = await bidCollection.find().toArray()
+            res.send(result)
+        })
+        app.get('/bid/', async (req, res) => {
+            const result = await bidCollection.findOne(query);
+            res.send(result)
+        })
+        app.post('/bids', async (req, res) => {
+            const bidData = req.body;
+            const { bidEmail, jobId } = bidData;
+            const existingBid = await bidCollection.findOne({ bidEmail, jobId });
+            if (existingBid) {
+                return res.send({ message: 'already exist' });
+            }
+            return
+            const result = await bidCollection.insertOne(req.body)
+            res.send(result)
+        })
+
+
+
 
         // Send a ping to confirm a successful connection
-        await client.db("admin").command({ ping: 1 });
-        console.log("Pinged your deployment. You successfully connected to MongoDB!");
+        // await client.db("admin").command({ ping: 1 });
+        // console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
 
     }
